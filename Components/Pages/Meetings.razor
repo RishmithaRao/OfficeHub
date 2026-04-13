@@ -1,0 +1,185 @@
+@page "/meetings"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject AppDbContext Db
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<PageTitle>Meetings</PageTitle>
+
+<MudStack Spacing="4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudText Typo="Typo.h4">Meetings</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.EventAvailable" OnClick="StartCreate">
+            Schedule
+        </MudButton>
+    </MudStack>
+
+    @if (_editing is not null)
+    {
+        <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+            <MudText Typo="Typo.subtitle1" Class="mb-3">@(_editing.Id == 0 ? "Schedule meeting" : "Update meeting")</MudText>
+            <EditForm Model="_editing" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" md="8">
+                        <MudTextField @bind-Value="_editing.Title" For="@(() => _editing.Title)" Label="Title" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudNumericField @bind-Value="_editing.DurationMinutes" For="@(() => _editing.DurationMinutes)" Label="Minutes" Variant="Variant.Outlined" Min="15" Max="480" Step="15" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_editing.Location" For="@(() => _editing.Location)" Label="Location" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_editing.OrganizerEmail" For="@(() => _editing.OrganizerEmail)" Label="Organizer email" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudDatePicker @bind-Date="_startDate" Label="Date" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTimePicker @bind-Time="_startTime" Label="Time" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" Class="d-flex gap-2">
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+                        <MudButton Variant="Variant.Text" OnClick="CancelEdit">Cancel</MudButton>
+                    </MudItem>
+                </MudGrid>
+            </EditForm>
+        </MudPaper>
+    }
+
+    <MudPaper Elevation="0" Outlined="true">
+        <MudTable Items="_meetings" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true" Loading="_loading">
+            <HeaderContent>
+                <MudTh>Title</MudTh>
+                <MudTh>Starts</MudTh>
+                <MudTh>Duration</MudTh>
+                <MudTh>Location</MudTh>
+                <MudTh>Organizer</MudTh>
+                <MudTh Style="width:120px;"></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Title">@context.Title</MudTd>
+                <MudTd DataLabel="Starts">@context.StartsAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+                <MudTd DataLabel="Duration">@context.DurationMinutes min</MudTd>
+                <MudTd DataLabel="Location">@context.Location</MudTd>
+                <MudTd DataLabel="Organizer">@context.OrganizerEmail</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" aria-label="Edit" OnClick="@(() => StartEdit(context.Id))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" aria-label="Delete" OnClick="@(() => DeleteAsync(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+</MudStack>
+
+@code {
+    private readonly List<Meeting> _meetings = new();
+    private Meeting? _editing;
+    private DateTime? _startDate;
+    private TimeSpan? _startTime;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _meetings.Clear();
+        _meetings.AddRange(await Db.Meetings.AsNoTracking().OrderBy(m => m.StartsAt).ToListAsync());
+        _loading = false;
+    }
+
+    private void StartCreate()
+    {
+        var start = DateTime.UtcNow.AddDays(1).Date.AddHours(15);
+        _editing = new Meeting
+        {
+            StartsAt = start,
+            DurationMinutes = 30,
+            Location = "Teams",
+            OrganizerEmail = "manager@officehub.local"
+        };
+        SplitStart(_editing.StartsAt);
+    }
+
+    private async Task StartEdit(int id)
+    {
+        var entity = await Db.Meetings.FirstOrDefaultAsync(m => m.Id == id);
+        if (entity is null)
+            return;
+        _editing = new Meeting
+        {
+            Id = entity.Id,
+            Title = entity.Title,
+            StartsAt = entity.StartsAt,
+            DurationMinutes = entity.DurationMinutes,
+            Location = entity.Location,
+            OrganizerEmail = entity.OrganizerEmail
+        };
+        SplitStart(entity.StartsAt);
+    }
+
+    private void SplitStart(DateTime utc)
+    {
+        var local = DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime();
+        _startDate = local.Date;
+        _startTime = local.TimeOfDay;
+    }
+
+    private void CancelEdit()
+    {
+        _editing = null;
+        _startDate = null;
+        _startTime = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_editing is null || _startDate is null || _startTime is null)
+            return;
+
+        var local = _startDate.Value.Date + _startTime.Value;
+        var utc = DateTime.SpecifyKind(local, DateTimeKind.Local).ToUniversalTime();
+        _editing.StartsAt = utc;
+
+        if (_editing.Id == 0)
+        {
+            Db.Meetings.Add(_editing);
+        }
+        else
+        {
+            var tracked = await Db.Meetings.FirstAsync(m => m.Id == _editing.Id);
+            tracked.Title = _editing.Title;
+            tracked.StartsAt = _editing.StartsAt;
+            tracked.DurationMinutes = _editing.DurationMinutes;
+            tracked.Location = _editing.Location;
+            tracked.OrganizerEmail = _editing.OrganizerEmail;
+        }
+
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Meeting saved", Severity.Success);
+        CancelEdit();
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync(Meeting row)
+    {
+        var ok = await JS.InvokeAsync<bool>("confirm", $"Remove “{row.Title}”?");
+        if (!ok)
+            return;
+
+        var tracked = await Db.Meetings.FirstOrDefaultAsync(m => m.Id == row.Id);
+        if (tracked is null)
+            return;
+
+        Db.Meetings.Remove(tracked);
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Meeting removed", Severity.Info);
+        await ReloadAsync();
+    }
+}

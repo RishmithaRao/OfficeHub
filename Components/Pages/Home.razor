@@ -1,0 +1,111 @@
+﻿@page "/"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject DashboardService Dashboard
+
+<PageTitle>Dashboard</PageTitle>
+
+<MudStack Spacing="4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Spacing="1">
+            <MudText Typo="Typo.h4">Operations dashboard</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                Snapshot of delivery health — suitable for a weekly leadership review.
+            </MudText>
+        </MudStack>
+        <MudChip T="string" Color="Color.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Bolt">
+            Live Blazor Server
+        </MudChip>
+    </MudStack>
+
+    @if (_summary is null)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else
+    {
+        <MudGrid Spacing="3">
+            <MudItem xs="12" sm="6" md="4" lg="2">
+                <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+                    <MudText Typo="Typo.overline" Class="mud-text-secondary">Active projects</MudText>
+                    <MudText Typo="Typo.h3">@_summary.ActiveProjects</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4" lg="2">
+                <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+                    <MudText Typo="Typo.overline" Class="mud-text-secondary">Open tasks</MudText>
+                    <MudText Typo="Typo.h3">@_summary.OpenTasks</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4" lg="2">
+                <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+                    <MudText Typo="Typo.overline" Class="mud-text-secondary">Overdue</MudText>
+                    <MudText Typo="Typo.h3" Color="Color.Error">@_summary.OverdueTasks</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4" lg="2">
+                <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+                    <MudText Typo="Typo.overline" Class="mud-text-secondary">Headcount</MudText>
+                    <MudText Typo="Typo.h3">@_summary.Headcount</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4" lg="2">
+                <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+                    <MudText Typo="Typo.overline" Class="mud-text-secondary">Meetings (7d)</MudText>
+                    <MudText Typo="Typo.h3">@_summary.MeetingsThisWeek</MudText>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="6">
+                <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+                    <MudText Typo="Typo.h6" Class="mb-3">Tasks by state</MudText>
+                    @if (_maxTasks == 0)
+                    {
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">No tasks yet.</MudText>
+                    }
+                    else
+                    {
+                        <MudStack Spacing="2">
+                            @foreach (var row in _summary.TasksByState.OrderByDescending(kv => kv.Value))
+                            {
+                                var pct = (int)Math.Round(row.Value * 100.0 / _maxTasks);
+                                <div>
+                                    <MudStack Row="true" Justify="Justify.SpaceBetween">
+                                        <MudText Typo="Typo.body2">@row.Key</MudText>
+                                        <MudText Typo="Typo.body2"><strong>@row.Value</strong></MudText>
+                                    </MudStack>
+                                    <MudProgressLinear Color="Color.Primary" Rounded="true" Size="Size.Medium" Value="@pct" Class="mt-1" />
+                                </div>
+                            }
+                        </MudStack>
+                    }
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+                    <MudText Typo="Typo.h6" Class="mb-2">What this demo shows</MudText>
+                    <MudList T="string" Dense="true">
+                        <MudListItem Icon="@Icons.Material.Filled.VerifiedUser">Cookie auth with roles (Admin / Manager / User)</MudListItem>
+                        <MudListItem Icon="@Icons.Material.Filled.Storage">EF Core + SQLite with relational data</MudListItem>
+                        <MudListItem Icon="@Icons.Material.Filled.TableRows">CRUD screens with validation and dialogs</MudListItem>
+                        <MudListItem Icon="@Icons.Material.Filled.FileDownload">Authenticated CSV export endpoint</MudListItem>
+                        <MudListItem Icon="@Icons.Material.Filled.Palette">MudBlazor UI components and responsive layout</MudListItem>
+                    </MudList>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</MudStack>
+
+@code {
+    private DashboardSummary? _summary;
+    private int _maxTasks;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _summary = await Dashboard.GetSummaryAsync();
+        _maxTasks = _summary.TasksByState.Values.DefaultIfEmpty(0).Max();
+    }
+}

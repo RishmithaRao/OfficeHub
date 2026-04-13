@@ -1,0 +1,40 @@
+@page "/admin"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject IWebHostEnvironment Env
+
+<PageTitle>Admin</PageTitle>
+
+<MudStack Spacing="4">
+    <MudText Typo="Typo.h4">Administration</MudText>
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+        This page is visible only to users in the <strong>Admin</strong> role — useful for demonstrating policy-based navigation.
+    </MudAlert>
+
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+                <MudText Typo="Typo.h6" Class="mb-2">Environment</MudText>
+                <MudSimpleTable Dense="true" Bordered="true">
+                    <tbody>
+                        <tr><td>Environment name</td><td><code>@Env.EnvironmentName</code></td></tr>
+                        <tr><td>Content root</td><td><code>@Env.ContentRootPath</code></td></tr>
+                    </tbody>
+                </MudSimpleTable>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+                <MudText Typo="Typo.h6" Class="mb-2">Demo security model</MudText>
+                <MudText Typo="Typo.body2" Class="mb-3 mud-text-secondary">
+                    Cookie authentication issues role claims used by <code>AuthorizeView</code> and <code>[Authorize(Roles = "Admin")]</code>.
+                </MudText>
+                <MudList T="string" Dense="true">
+                    <MudListItem Icon="@Icons.Material.Filled.ManageAccounts">Admin: full access including this screen</MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.Groups">Manager: operational modules</MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.Person">User: same modules (roles are demo labels)</MudListItem>
+                </MudList>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudStack>

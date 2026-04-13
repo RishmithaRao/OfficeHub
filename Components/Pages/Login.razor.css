@@ -1,0 +1,15 @@
+.login-form .mud-input-control {
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    border-radius: var(--mud-default-borderradius);
+    border: 1px solid var(--mud-palette-lines-inputs);
+    background: var(--mud-palette-surface);
+    color: var(--mud-palette-text-primary);
+    font: inherit;
+    box-sizing: border-box;
+}
+
+.login-form .mud-input-control:focus {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 1px;
+}

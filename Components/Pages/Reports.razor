@@ -1,0 +1,65 @@
+@page "/reports"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject DashboardService Dashboard
+@inject IHttpContextAccessor Http
+<PageTitle>Reports</PageTitle>
+
+<MudStack Spacing="4">
+    <MudText Typo="Typo.h4">Reports</MudText>
+    <MudText Typo="Typo.body2" Class="mud-text-secondary">
+        Export and lightweight analytics for leadership readouts.
+    </MudText>
+
+    @if (_summary is null)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else
+    {
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="6">
+                <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+                    <MudText Typo="Typo.h6" Class="mb-2">Delivery snapshot</MudText>
+                    <MudList T="string" Dense="true">
+                        <MudListItem Icon="@Icons.Material.Filled.Folder">Active projects: <strong>@_summary.ActiveProjects</strong></MudListItem>
+                        <MudListItem Icon="@Icons.Material.Filled.Assignment">Open tasks: <strong>@_summary.OpenTasks</strong></MudListItem>
+                        <MudListItem Icon="@Icons.Material.Filled.Warning">Overdue tasks: <strong>@_summary.OverdueTasks</strong></MudListItem>
+                    </MudList>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+                    <MudText Typo="Typo.h6" Class="mb-2">Exports</MudText>
+                    <MudText Typo="Typo.body2" Class="mb-4 mud-text-secondary">
+                        Download all work items as CSV. The endpoint requires an authenticated session cookie.
+                    </MudText>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Download"
+                               Href="@_exportUrl"
+                               Target="_blank"
+                               Rel="noopener">
+                        Download work-items.csv
+                    </MudButton>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</MudStack>
+
+@code {
+    private DashboardSummary? _summary;
+    private string _exportUrl = "/api/export/tasks.csv";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _summary = await Dashboard.GetSummaryAsync();
+        var req = Http.HttpContext?.Request;
+        if (req is not null)
+        {
+            var baseUri = $"{req.Scheme}://{req.Host}";
+            _exportUrl = $"{baseUri}/api/export/tasks.csv";
+        }
+    }
+}

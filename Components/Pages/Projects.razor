@@ -1,0 +1,187 @@
+@page "/projects"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject AppDbContext Db
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<PageTitle>Projects</PageTitle>
+
+<MudStack Spacing="4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudText Typo="Typo.h4">Projects</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CreateNewFolder" OnClick="StartCreate">
+            New project
+        </MudButton>
+    </MudStack>
+
+    @if (_editing is not null)
+    {
+        <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+            <MudText Typo="Typo.subtitle1" Class="mb-3">@(_editing.Id == 0 ? "Create project" : "Update project")</MudText>
+            <EditForm Model="_editing" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_editing.Name" For="@(() => _editing.Name)" Label="Name" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudTextField @bind-Value="_editing.Code" For="@(() => _editing.Code)" Label="Code" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudSelect T="string" @bind-Value="_editing.Status" Label="Status" Variant="Variant.Outlined">
+                            @foreach (var s in _statuses)
+                            {
+                                <MudSelectItem Value="@s">@s</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudNumericField @bind-Value="_editing.Budget" Label="Budget" Variant="Variant.Outlined" Format="N0" Adornment="Adornment.Start" AdornmentText="$" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudDatePicker @bind-Date="_startDate" Label="Start date" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudDatePicker @bind-Date="_endDate" Label="End date (optional)" Variant="Variant.Outlined" Clearable="true" />
+                    </MudItem>
+                    <MudItem xs="12" Class="d-flex gap-2">
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+                        <MudButton Variant="Variant.Text" OnClick="CancelEdit">Cancel</MudButton>
+                    </MudItem>
+                </MudGrid>
+            </EditForm>
+        </MudPaper>
+    }
+
+    <MudPaper Elevation="0" Outlined="true">
+        <MudTable Items="_projects" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true" Loading="_loading">
+            <HeaderContent>
+                <MudTh>Code</MudTh>
+                <MudTh>Name</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Budget</MudTh>
+                <MudTh>Timeline</MudTh>
+                <MudTh Style="width:120px;"></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Code"><MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">@context.Code</MudChip></MudTd>
+                <MudTd DataLabel="Name">@context.Name</MudTd>
+                <MudTd DataLabel="Status">@context.Status</MudTd>
+                <MudTd DataLabel="Budget">@context.Budget.ToString("C0")</MudTd>
+                <MudTd DataLabel="Timeline">@context.StartDate.ToString("yyyy-MM-dd") → @(context.EndDate?.ToString("yyyy-MM-dd") ?? "—")</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" aria-label="Edit" OnClick="@(() => StartEdit(context.Id))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" aria-label="Delete" OnClick="@(() => DeleteAsync(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+</MudStack>
+
+@code {
+    private readonly List<Project> _projects = new();
+    private readonly string[] _statuses = ["Active", "OnHold", "Completed"];
+    private Project? _editing;
+    private DateTime? _startDate;
+    private DateTime? _endDate;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _projects.Clear();
+        _projects.AddRange(await Db.Projects.AsNoTracking().OrderByDescending(p => p.StartDate).ToListAsync());
+        _loading = false;
+    }
+
+    private void StartCreate()
+    {
+        _editing = new Project
+        {
+            Status = "Active",
+            StartDate = DateTime.UtcNow.Date,
+            Budget = 50_000m
+        };
+        _startDate = _editing.StartDate;
+        _endDate = _editing.EndDate;
+    }
+
+    private async Task StartEdit(int id)
+    {
+        var entity = await Db.Projects.FirstOrDefaultAsync(p => p.Id == id);
+        if (entity is null)
+            return;
+        _editing = new Project
+        {
+            Id = entity.Id,
+            Name = entity.Name,
+            Code = entity.Code,
+            Status = entity.Status,
+            StartDate = entity.StartDate,
+            EndDate = entity.EndDate,
+            Budget = entity.Budget
+        };
+        _startDate = entity.StartDate;
+        _endDate = entity.EndDate;
+    }
+
+    private void CancelEdit()
+    {
+        _editing = null;
+        _startDate = null;
+        _endDate = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_editing is null)
+            return;
+        if (_startDate is not null)
+            _editing.StartDate = DateTime.SpecifyKind(_startDate.Value.Date, DateTimeKind.Utc);
+        _editing.EndDate = _endDate.HasValue
+            ? DateTime.SpecifyKind(_endDate.Value.Date, DateTimeKind.Utc)
+            : null;
+
+        if (_editing.Id == 0)
+        {
+            Db.Projects.Add(_editing);
+        }
+        else
+        {
+            var tracked = await Db.Projects.FirstAsync(p => p.Id == _editing.Id);
+            tracked.Name = _editing.Name;
+            tracked.Code = _editing.Code;
+            tracked.Status = _editing.Status;
+            tracked.StartDate = _editing.StartDate;
+            tracked.EndDate = _editing.EndDate;
+            tracked.Budget = _editing.Budget;
+        }
+
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Project saved", Severity.Success);
+        CancelEdit();
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync(Project row)
+    {
+        var ok = await JS.InvokeAsync<bool>("confirm", $"Remove {row.Name}? This deletes its tasks.");
+        if (!ok)
+            return;
+
+        var tracked = await Db.Projects.Include(p => p.WorkItems).FirstOrDefaultAsync(p => p.Id == row.Id);
+        if (tracked is null)
+            return;
+
+        Db.Projects.Remove(tracked);
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Project removed", Severity.Info);
+        await ReloadAsync();
+    }
+}

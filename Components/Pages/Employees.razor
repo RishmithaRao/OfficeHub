@@ -1,0 +1,186 @@
+@page "/employees"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject AppDbContext Db
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<PageTitle>Employees</PageTitle>
+
+<MudStack Spacing="4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudText Typo="Typo.h4">Employees</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="StartCreate">
+            Add employee
+        </MudButton>
+    </MudStack>
+
+    @if (_editing is not null)
+    {
+        <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+            <MudText Typo="Typo.subtitle1" Class="mb-3">@(_editing.Id == 0 ? "New employee" : "Edit employee")</MudText>
+            <EditForm Model="_editing" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_editing.FullName" For="@(() => _editing.FullName)" Label="Full name" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_editing.Email" For="@(() => _editing.Email)" Label="Email" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_editing.JobTitle" For="@(() => _editing.JobTitle)" Label="Job title" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="int" @bind-Value="_editing.DepartmentId" Label="Department" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                            @foreach (var d in _departments)
+                            {
+                                <MudSelectItem Value="@d.Id">@d.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudDatePicker @bind-Date="_hiredDate" Label="Hired on" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" Class="d-flex gap-2">
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+                        <MudButton Variant="Variant.Text" OnClick="CancelEdit">Cancel</MudButton>
+                    </MudItem>
+                </MudGrid>
+            </EditForm>
+        </MudPaper>
+    }
+
+    <MudPaper Elevation="0" Outlined="true">
+        <MudTable Items="_employees" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true" Loading="_loading">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Email</MudTh>
+                <MudTh>Title</MudTh>
+                <MudTh>Department</MudTh>
+                <MudTh>Hired</MudTh>
+                <MudTh Style="width:120px;"></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name">@context.FullName</MudTd>
+                <MudTd DataLabel="Email">@context.Email</MudTd>
+                <MudTd DataLabel="Title">@context.JobTitle</MudTd>
+                <MudTd DataLabel="Department">@context.Department?.Name</MudTd>
+                <MudTd DataLabel="Hired">@context.HiredOn.ToString("yyyy-MM-dd")</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" aria-label="Edit" OnClick="@(() => StartEdit(context.Id))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" aria-label="Delete" OnClick="@(() => DeleteAsync(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+</MudStack>
+
+@code {
+    private readonly List<Employee> _employees = new();
+    private List<Department> _departments = new();
+    private Employee? _editing;
+    private DateTime? _hiredDate;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _departments = await Db.Departments.AsNoTracking().OrderBy(d => d.Name).ToListAsync();
+        _employees.Clear();
+        _employees.AddRange(await Db.Employees
+            .AsNoTracking()
+            .Include(e => e.Department)
+            .OrderBy(e => e.FullName)
+            .ToListAsync());
+        _loading = false;
+    }
+
+    private void StartCreate()
+    {
+        _editing = new Employee
+        {
+            DepartmentId = _departments.FirstOrDefault()?.Id ?? 0,
+            HiredOn = DateTime.UtcNow.Date
+        };
+        _hiredDate = _editing.HiredOn;
+    }
+
+    private async Task StartEdit(int id)
+    {
+        var entity = await Db.Employees.FirstOrDefaultAsync(e => e.Id == id);
+        if (entity is null)
+            return;
+        _editing = new Employee
+        {
+            Id = entity.Id,
+            FullName = entity.FullName,
+            Email = entity.Email,
+            JobTitle = entity.JobTitle,
+            DepartmentId = entity.DepartmentId,
+            HiredOn = entity.HiredOn
+        };
+        _hiredDate = entity.HiredOn;
+    }
+
+    private void CancelEdit()
+    {
+        _editing = null;
+        _hiredDate = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_editing is null)
+            return;
+        if (_hiredDate is not null)
+            _editing.HiredOn = DateTime.SpecifyKind(_hiredDate.Value.Date, DateTimeKind.Utc);
+
+        if (_editing.Id == 0)
+        {
+            Db.Employees.Add(_editing);
+        }
+        else
+        {
+            var tracked = await Db.Employees.FirstAsync(e => e.Id == _editing.Id);
+            tracked.FullName = _editing.FullName;
+            tracked.Email = _editing.Email;
+            tracked.JobTitle = _editing.JobTitle;
+            tracked.DepartmentId = _editing.DepartmentId;
+            tracked.HiredOn = _editing.HiredOn;
+        }
+
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Employee saved", Severity.Success);
+        CancelEdit();
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync(Employee row)
+    {
+        var ok = await JS.InvokeAsync<bool>("confirm", $"Remove {row.FullName}?");
+        if (!ok)
+            return;
+
+        var tracked = await Db.Employees.FirstOrDefaultAsync(e => e.Id == row.Id);
+        if (tracked is null)
+            return;
+
+        var assignedTasks = await Db.WorkItems.AnyAsync(w => w.AssigneeId == tracked.Id);
+        if (assignedTasks)
+        {
+            Snackbar.Add("Reassign or complete this person’s tasks first.", Severity.Warning);
+            return;
+        }
+
+        Db.Employees.Remove(tracked);
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Employee removed", Severity.Info);
+        await ReloadAsync();
+    }
+}

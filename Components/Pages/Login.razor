@@ -1,0 +1,78 @@
+@page "/login"
+@layout EmptyLayout
+@attribute [AllowAnonymous]
+
+<PageTitle>Sign in</PageTitle>
+
+<MudPaper Class="pa-8" Elevation="8" Style="width:100%;max-width:440px;border-radius:12px;">
+    <MudText Typo="Typo.h4" Class="mb-1">OfficeHub</MudText>
+    <MudText Typo="Typo.body2" Class="mb-6 mud-text-secondary">
+        Internal workspace demo — projects, people, and reporting in one place.
+    </MudText>
+
+    @if (ShowError)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true">
+            Sign-in failed. Check the demo accounts below.
+        </MudAlert>
+    }
+
+    <form method="post" action="/auth/login" class="login-form">
+        <input type="hidden" name="returnUrl" value="@EffectiveReturn" />
+        <MudStack Spacing="3">
+            <div>
+                <MudText Typo="Typo.caption" Class="mb-1">Work email</MudText>
+                <input name="email"
+                       type="email"
+                       autocomplete="username"
+                       required
+                       class="mud-input-control" />
+            </div>
+            <div>
+                <MudText Typo="Typo.caption" Class="mb-1">Password</MudText>
+                <input name="password"
+                       type="password"
+                       autocomplete="current-password"
+                       required
+                       class="mud-input-control" />
+            </div>
+            <MudButton ButtonType="ButtonType.Submit"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Size="Size.Large"
+                       FullWidth="true">
+                Continue
+            </MudButton>
+        </MudStack>
+    </form>
+
+    <MudDivider Class="my-6" />
+    <MudText Typo="Typo.subtitle2" Class="mb-2">Demo accounts</MudText>
+    <MudSimpleTable Dense="true" Bordered="true">
+        <tbody>
+            <tr>
+                <td><strong>Admin</strong></td>
+                <td>admin@officehub.local / Admin123!</td>
+            </tr>
+            <tr>
+                <td><strong>Manager</strong></td>
+                <td>manager@officehub.local / Manager123!</td>
+            </tr>
+            <tr>
+                <td><strong>User</strong></td>
+                <td>user@officehub.local / User123!</td>
+            </tr>
+        </tbody>
+    </MudSimpleTable>
+    <MudText Typo="Typo.caption" Class="mt-4 mud-text-secondary">
+        Cookie authentication, role-based navigation (Admin area), EF Core + SQLite, validation, CSV export, and interactive Blazor Server UI.
+    </MudText>
+</MudPaper>
+
+@code {
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+
+    private string EffectiveReturn => string.IsNullOrWhiteSpace(ReturnUrl) ? "/" : ReturnUrl!;
+    private bool ShowError => Error == "1";
+}

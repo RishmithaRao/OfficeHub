@@ -1,0 +1,25 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+                <NotAuthorized>
+                    @if (context.User.Identity?.IsAuthenticated ?? false)
+                    {
+                        <LayoutView Layout="typeof(Layout.MainLayout)">
+                            <MudAlert Severity="Severity.Warning" Class="mt-4">
+                                You are signed in but do not have access to this page.
+                            </MudAlert>
+                        </LayoutView>
+                    }
+                    else
+                    {
+                        <RedirectToLogin />
+                    }
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+    </Router>
+</CascadingAuthenticationState>
